@@ -51,20 +51,23 @@
     document.querySelectorAll('.bag-n').forEach(el => el.textContent = n);
   };
   const write = c => { try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (e) {} paint(); };
-  window.TVBag = { read, write, paint, MAX };
+  const add = (id, qty) => {
+    const list = (window.TV && Array.isArray(TV.products)) ? TV.products : [];
+    const p = list.find(x => String(x.id) === String(id)); if (!p) return false;
+    const cart = read(), it = cart.find(i => i.id === String(p.id));
+    if (it) it.quantity = Math.min(MAX, it.quantity + qty);
+    else cart.push({ id: String(p.id), name: p.name, price: Number(p.price), quantity: Math.min(MAX, qty) });
+    write(cart); return true;
+  };
+  window.TVBag = { read, write, add, MAX };
 
   document.addEventListener('click', e => {
-    const add = e.target.closest('.add-btn');
-    if (add) {
+    const btn = e.target.closest('.add-btn');
+    if (btn) {
       if (window.TV && TV.loggedIn === false) { window.location.href = 'login.php'; return; }
-      const list = (window.TV && Array.isArray(TV.products)) ? TV.products : [];
-      const p = list.find(x => String(x.id) === String(add.dataset.id)); if (!p) return;
-      const cart = read(), it = cart.find(i => i.id === String(p.id));
-      if (it) it.quantity = Math.min(MAX, it.quantity + 1);
-      else cart.push({ id: String(p.id), name: p.name, price: Number(p.price), quantity: 1 });
-      write(cart);
-      add.textContent = '\u2713'; add.classList.add('added');
-      setTimeout(() => { add.textContent = '+'; add.classList.remove('added'); }, 1400);
+      if (!add(btn.dataset.id, 1)) return;
+      btn.textContent = '\u2713'; btn.classList.add('added');
+      setTimeout(() => { btn.textContent = '+'; btn.classList.remove('added'); }, 1400);
       return;
     }
     if (e.target.closest('a[href="logout.php"]')) { try { ['tv_cart','tv_wish','tv_orders'].forEach(k => localStorage.removeItem(k)); } catch (err) {} }
@@ -81,16 +84,17 @@
     price:'$' + Number(p.price), bg:p.card_color, icon:p.icon_svg
   }));
 
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const grid = document.getElementById('productGrid');
   function renderProducts(){
     grid.innerHTML = products.map(p => `
-      <div class="product-card" data-concern="${p.concern}" style="--card-bg:${p.bg}">
+      <div class="product-card" data-concern="${esc(p.concern)}" style="--card-bg:${esc(p.bg)}">
         <svg class="icon" viewBox="0 0 52 52">${p.icon}</svg>
-        <h3>${p.name}</h3>
-        <p class="concern">${p.concernLabel}</p>
+        <h3>${esc(p.name)}</h3>
+        <p class="concern">${esc(p.concernLabel)}</p>
         <div class="price-row">
-          <span class="price">${p.price}</span>
-          <button class="add-btn" data-id="${p.id}" aria-label="Add ${p.name} to bag">+</button>
+          <span class="price">${esc(p.price)}</span>
+          <button class="add-btn" data-id="${esc(p.id)}" aria-label="Add ${esc(p.name)} to bag">+</button>
         </div>
       </div>
     `).join('');
@@ -172,7 +176,7 @@
     quizCard.innerHTML = `
       <p class="quiz-question">${current.q}</p>
       <div class="quiz-options">
-        ${current.opts.map((o,i) => `<button class="quiz-option" data-tag="${o.tag}">${o.label}</button>`).join('')}
+        ${current.opts.map(o => `<button class="quiz-option" data-tag="${o.tag}">${o.label}</button>`).join('')}
       </div>
       <div class="quiz-nav">
         <button class="quiz-back" id="quizBack" ${step===0?'disabled':''}>← Back</button>
@@ -275,6 +279,9 @@
     }finally{ formBtn.disabled = false; }
   });
 
+  document.querySelectorAll('[data-scroll]').forEach(b =>
+    b.addEventListener('click', () => document.getElementById(b.dataset.scroll).scrollIntoView()));
+
   const hamburgerBtn = document.getElementById('hamburgerBtn');
   const mobileMenu = document.getElementById('mobileMenu');
   hamburgerBtn.addEventListener('click', () => {
@@ -297,3 +304,45 @@
   backToTop.addEventListener('click', () => window.scrollTo({top:0, behavior:'smooth'}));
 
 })();
+
+(function(){
+  const WKEY = 'tv_wish', OKEY = 'tv_orders';
+  const $ = (s, r = document) => r.querySelector(s);
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const money = n => '$' + Number(n).toFixed(2);
+  const load = k => { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const products = () => (window.TV && Array.isArray(TV.products)) ? TV.products : [];
+  const find = id => products().find(p => String(p.id) === String(id));
+
+  const Wish = {
+    read: () => load(WKEY).map(String),
+    has: id => Wish.read().includes(String(id)),
+    toggle(id){
+      id = String(id); const w = Wish.read(), i = w.indexOf(id);
+      if (i > -1) w.splice(i, 1); else w.push(id);
+      save(WKEY, w); document.dispatchEvent(new CustomEvent('tv:wish'));
+      return i === -1;
+    }
+  };
+
+  const Orders = {
+    read: () => load(OKEY).filter(o => o && Array.isArray(o.items)),
+    add(o){
+      const list = Orders.read();
+      list.unshift({ t: Date.now(), total: Number(o.total) || 0,
+        items: o.items.map(i => ({ id: String(i.id), name: String(i.name), price: Number(i.price), quantity: Number(i.quantity) })) });
+      save(OKEY, list.slice(0, 5));
+    }
+  };
+
+  function shipText(){
+    const names = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'], now = new Date();
+    for (let d = 0; d < 7; d++){
+      const g = (now.getDay() + d) % 7;
+      if (g === 2 || g === 5) return d === 0 ? 'Next shipment: today (' + names[g] + ')'
+        : 'Next shipment: ' + names[g] + ' \u00B7 ' + (d === 1 ? 'tomorrow' : 'in ' + d + ' days');
+    }
+    return '';
+  }
+})
