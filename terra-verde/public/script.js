@@ -444,4 +444,123 @@
     overlay.hidden = true; document.body.style.overflow = '';
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
-})
+ document.addEventListener('keydown', e => {
+    if (!overlay || overlay.hidden) return;
+    if (e.key === 'Escape') return closeDialog();
+    if (e.key === 'Tab') {
+      const f = [...overlay.querySelectorAll('button:not([hidden])')].filter(b => b.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  document.addEventListener('click', e => {
+    const heart = e.target.closest('.product-card .wish-btn');
+    if (heart) { Wish.toggle(heart.closest('.product-card').dataset.pid); return; }
+    const qv = e.target.closest('.qv-btn');
+    if (qv) { openDialog(qv.closest('.product-card').dataset.pid); return; }
+    const card = e.target.closest('.product-card');
+    if (card && card.dataset.pid && !e.target.closest('button')) openDialog(card.dataset.pid);
+  });
+
+  const grid = $('.product-grid');
+  let apply = () => {};
+  if (grid) {
+    const tools = el('div', 'shop-tools');
+    tools.innerHTML =
+      '<input type="search" id="tvSearch" placeholder="Search formulas, e.g. oat, redness\u2026" aria-label="Search products">' +
+      '<select id="tvSort" aria-label="Sort products"><option value="featured">Sort: Featured</option><option value="low">Price: low to high</option>' +
+      '<option value="high">Price: high to low</option><option value="az">Name: A to Z</option></select>' +
+      '<button type="button" class="filter-btn" id="tvSaved" aria-pressed="false">\u2661 Saved <span id="tvSavedN">0</span></button>';
+    grid.before(tools);
+    const empty = el('p', 'no-results', 'Nothing matches that yet \u2014 try a different word or clear the filters.'); empty.hidden = true;
+    grid.after(empty);
+    const search = $('#tvSearch'), sort = $('#tvSort'), savedBtn = $('#tvSaved');
+    let savedOnly = false;
+    apply = () => {
+      const q = search.value.trim().toLowerCase(), w = Wish.read();
+      const cards = [...grid.querySelectorAll('.product-card')];
+      const text = c => (c.dataset.name + ' ' + (c.querySelector('.concern') ? c.querySelector('.concern').textContent : '')).toLowerCase();
+      cards.sort((a, b) => {
+        switch (sort.value) {
+          case 'low':  return a.dataset.price - b.dataset.price || a.dataset.i - b.dataset.i;
+          case 'high': return b.dataset.price - a.dataset.price || a.dataset.i - b.dataset.i;
+          case 'az':   return a.dataset.name.localeCompare(b.dataset.name);
+          default:     return a.dataset.i - b.dataset.i;
+        }
+      }).forEach(c => grid.append(c));
+      let shown = 0;
+      cards.forEach(c => {
+        const ok = (!q || text(c).includes(q)) && (!savedOnly || w.includes(c.dataset.pid));
+        c.classList.toggle('hide-s', !ok);
+        if (ok && !c.classList.contains('hide')) shown++;
+      });
+      empty.hidden = shown > 0;
+      $('#tvSavedN').textContent = w.length;
+      savedBtn.classList.toggle('active', savedOnly); savedBtn.setAttribute('aria-pressed', savedOnly);
+    };
+    search.addEventListener('input', apply); sort.addEventListener('change', apply);
+    savedBtn.addEventListener('click', () => { savedOnly = !savedOnly; apply(); });
+    const fb = $('#filterBar'); if (fb) fb.addEventListener('click', () => apply());
+  }
+
+  const TIPS = [
+    'Apply serums to damp skin \u2014 they absorb better and feel lighter.',
+    'Clay masks work best rinsed off while still slightly damp, before they crack.',
+    'Sunscreen is the last step every morning, even on cloudy days.',
+    'Introduce one new product at a time and wait a week before adding the next.',
+    'Press products in with your palms instead of rubbing. It is gentler on sensitive skin.',
+    'Store water-based formulas away from sunlight and out of the steamy shower.',
+    'Drink a glass of water with your evening ritual. Your skin notices.'
+  ];
+  function renderHome(){
+    const ship = $('#shipNote'); if (ship) ship.textContent = shipText();
+
+    const tipText = $('#tipText'), tipNext = $('#tipNext');
+    if (tipText) {
+      let t = Math.floor(Date.now() / 864e5) % TIPS.length;
+      tipText.textContent = TIPS[t];
+      tipNext.addEventListener('click', () => { t = (t + 1) % TIPS.length; tipText.textContent = TIPS[t]; });
+    }
+
+    const oSec = $('#ordersSection'), oList = $('#ordersList');
+    if (oSec) {
+      const list = Orders.read(); oSec.hidden = !list.length; oList.replaceChildren();
+      list.forEach(o => {
+        const row = el('div', 'order-row'), info = el('div');
+        const when = new Date(o.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        const n = o.items.reduce((s, i) => s + i.quantity, 0);
+        info.append(el('strong', null, when + ' \u00B7 ' + n + ' item' + (n > 1 ? 's' : '') + ' \u00B7 ' + money(o.total)));
+        info.append(el('br'), el('span', 'ord-items', o.items.map(i => i.quantity + ' \u00D7 ' + i.name).join(', ')));
+        const btn = el('button', 'btn-primary btn-sm', 'Order again'); btn.type = 'button';
+        btn.addEventListener('click', () => {
+          let added = 0; o.items.forEach(i => { if (TVBag.add(i.id, i.quantity)) added++; });
+          if (added) window.location.href = 'index.php?page=bag'; else { btn.textContent = 'No longer available'; btn.disabled = true; }
+        });
+        row.append(info, btn); oList.append(row);
+      });
+    }
+    renderSaved();
+  }
+  function renderSaved(){
+    const sec = $('#savedSection'), list = $('#savedList'); if (!sec) return;
+    const items = Wish.read().map(find).filter(Boolean);
+    sec.hidden = !items.length; list.replaceChildren();
+    items.forEach(p => {
+      const row = el('div', 'order-row'), info = el('div');
+      info.append(el('strong', null, p.name), el('br'), el('span', 'ord-items', p.concern_label + ' \u00B7 $' + Number(p.price)));
+      const acts = el('div', 'row-acts');
+      const add = el('button', 'btn-primary btn-sm', 'Add to bag'); add.type = 'button';
+      add.addEventListener('click', () => { TVBag.add(p.id, 1); add.textContent = 'Added \u2713'; setTimeout(() => { add.textContent = 'Add to bag'; }, 1400); });
+      const rm = el('button', 'tv-link', 'Remove'); rm.type = 'button'; rm.addEventListener('click', () => Wish.toggle(p.id));
+      acts.append(add, rm); row.append(info, acts); list.append(row);
+    });
+  }
+
+  document.addEventListener('tv:wish', () => { paintHearts(); paintSave(); apply(); renderSaved(); });
+  window.addEventListener('storage', e => { if (e.key === WKEY) document.dispatchEvent(new CustomEvent('tv:wish')); });
+
+  enhanceCards(); apply(); renderHome();
+})();
+
