@@ -4,8 +4,8 @@ require __DIR__ . '/../config/config.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'subscribe') {
   header('Content-Type: application/json');
   if (!csrf_ok()) 
-    { http_response_code(400); 
-  echo '{"error":"bad request"}'; exit; }
+    { http_response_code(400);
+   echo '{"error":"bad request"}'; exit; }
   $email = strtolower(trim($_POST['email'] ?? ''));
   if (strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) { http_response_code(422); echo '{"error":"invalid email"}'; exit; }
   db()->prepare("INSERT INTO newsletter_subscribers (email) VALUES (?) ON DUPLICATE KEY UPDATE unsubscribed_at = NULL")->execute([$email]);
@@ -123,8 +123,8 @@ $products = db()->query("SELECT p.id,p.name,p.concern,p.concern_label,p.price,p.
       <h1>Skincare that still smells like the garden it came from.</h1>
       <p class="hero-copy">We press, steep, and cold-blend every formula in batches under forty bottles — eucalyptus, oat, and clay sourced from three family farms we visit every season.</p>
       <div class="hero-actions">
-        <button class="btn-primary" onclick="document.getElementById('products').scrollIntoView()">Shop the collection</button>
-        <button class="btn-ghost" onclick="document.getElementById('ritual').scrollIntoView()">
+        <button class="btn-primary" data-scroll="products">Shop the collection</button>
+        <button class="btn-ghost" data-scroll="ritual">
           <span class="circle">→</span> Find your ritual
         </button>
       </div>
