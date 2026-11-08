@@ -345,7 +345,7 @@
     }
     return '';
   }
-    window.TVOrders = Orders; window.TVExtras = { shipText, money, el };
+  window.TVOrders = Orders; window.TVExtras = { shipText, money, el };
 
   const INFO = {
     'Eucalyptus Clarifying Mist':   { ing:'Eucalyptus hydrosol, witch hazel, green tea, glycerin', use:'Close your eyes and spritz 2\u20133 times after cleansing, morning or midday.', size:'100 ml', pair:'Ivory Oat Cream' },
@@ -444,7 +444,7 @@
     overlay.hidden = true; document.body.style.overflow = '';
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
- document.addEventListener('keydown', e => {
+  document.addEventListener('keydown', e => {
     if (!overlay || overlay.hidden) return;
     if (e.key === 'Escape') return closeDialog();
     if (e.key === 'Tab') {
@@ -564,3 +564,67 @@
   enhanceCards(); apply(); renderHome();
 })();
 
+(function(){
+  const SAMPLE_AT = 60;
+  const { money, el } = TVExtras;
+  const page = document.getElementById('bagPage');
+  if (!page) return;
+  const catalog = {}; TV.products.forEach(p => catalog[String(p.id)] = p);
+  const list = document.getElementById('bagList');
+  const summary = document.getElementById('bagSummary'), browse = document.getElementById('browse');
+  const countText = document.getElementById('bagCount'), totalEl = document.getElementById('bagTotal');
+
+  function setQty(id, q){
+    const cart = TVBag.read();
+    TVBag.write(q < 1 ? cart.filter(i => i.id !== id) : cart.map(i => i.id === id ? {...i, quantity: Math.min(TVBag.MAX, q)} : i));
+    render();
+  }
+  function row(it){
+    const p = catalog[it.id] || {};
+    const r = el('div', 'bag-row'); r.style.setProperty('--card-bg', p.card_color || 'var(--peach)');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 52 52');
+    if (p.icon_svg) svg.innerHTML = p.icon_svg;
+    const info = el('div'), h = el('h3'), each = el('span', 'each');
+    h.textContent = it.name; each.textContent = money(it.price) + ' each'; info.append(h, each);
+    const qty = el('form', 'qty'), input = el('input'), upd = el('button', 'link-btn');
+    input.type = 'number'; input.min = 0; input.max = TVBag.MAX; input.value = it.quantity;
+    input.setAttribute('aria-label', 'Quantity for ' + it.name);
+    upd.type = 'submit'; upd.textContent = 'Update'; qty.append(input, upd);
+    qty.addEventListener('submit', e => { e.preventDefault(); setQty(it.id, parseInt(input.value, 10) || 0); });
+    const line = el('div', 'line'), price = el('span', 'price'), rm = el('button', 'link-btn');
+    price.style.fontFamily = "'Fraunces',serif"; price.textContent = money(it.price * it.quantity);
+    rm.type = 'button'; rm.textContent = 'Remove'; rm.addEventListener('click', () => setQty(it.id, 0));
+    line.append(price, document.createElement('br'), rm);
+    r.append(svg, info, qty, line); return r;
+  }
+  function render(){
+    const cart = TVBag.read(), n = cart.reduce((s, i) => s + i.quantity, 0);
+    list.replaceChildren(...cart.map(row));
+    countText.textContent = n ? n + ' item' + (n > 1 ? 's' : '') + ' ready to order.' : 'Nothing here yet.';
+    totalEl.textContent = money(cart.reduce((s, i) => s + i.price * i.quantity, 0));
+    summary.hidden = !cart.length; browse.hidden = !!cart.length;
+    const total = cart.reduce((s, i) => s + i.price * i.quantity, 0), bar = document.getElementById('sampleBar');
+    bar.hidden = !cart.length; bar.classList.toggle('done', total >= SAMPLE_AT);
+    document.getElementById('sampleText').textContent = total >= SAMPLE_AT
+      ? 'Free sample unlocked \u2014 we will tuck a Beeswax & Honey Lip Salve sample into your order.'
+      : 'Add ' + money(SAMPLE_AT - total) + ' more to unlock a free Beeswax & Honey Lip Salve sample.';
+    document.getElementById('sampleFill').style.width = Math.min(100, total / SAMPLE_AT * 100) + '%';
+  }
+  document.getElementById('placeOrder').addEventListener('click', () => {
+    const cart = TVBag.read(); if (!cart.length) return;
+    const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+    if (window.TVOrders) TVOrders.add({items: cart, total});
+    TVBag.write([]);
+    page.replaceChildren();
+    const h = el('h1'); h.textContent = 'Thank you, ' + TV.first + '.';
+    const p = el('p'); p.textContent = 'Your order has been placed. ' + (window.TVExtras ? TVExtras.shipText() + '.' : '') + (total >= SAMPLE_AT ? ' Your free sample is included.' : '');
+    const box = el('div', 'sum');
+    cart.forEach(i => { const l = el('div', 'ln'), a = el('span'), b = el('span');
+      a.textContent = i.quantity + ' \u00D7 ' + i.name; b.textContent = money(i.price * i.quantity); l.append(a, b); box.append(l); });
+    const t = el('div', 'tot'), ta = el('span'), tb = el('span'); ta.textContent = 'Total'; tb.textContent = money(total); t.append(ta, tb); box.append(t);
+    const note = el('p'); note.style.cssText = 'font-size:.85rem;margin-top:18px'; note.textContent = 'This project keeps the bag in your browser only, so the order is not saved on the server.';
+    const back = el('a', 'btn-primary'); back.href = 'home.php'; back.textContent = 'Back to home'; back.style.cssText = 'text-decoration:none;display:inline-block;margin-top:24px';
+    page.append(h, p, box, note, back);
+  });
+  render();
+})();
