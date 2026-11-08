@@ -1,7 +1,7 @@
 CREATE DATABASE IF NOT EXISTS terra_verde CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE terra_verde;
 
-CREATE USER IF NOT EXISTS 'terra_user'@'localhost' IDENTIFIED BY 'terra_pass_change_me';
+CREATE USER IF NOT EXISTS 'terra_user'@'localhost' IDENTIFIED BY 'TV_DB_PASS';
 GRANT SELECT, INSERT, UPDATE, DELETE ON terra_verde.* TO 'terra_user'@'localhost';
 FLUSH PRIVILEGES;
 
