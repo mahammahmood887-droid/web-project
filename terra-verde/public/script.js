@@ -610,9 +610,23 @@
       : 'Add ' + money(SAMPLE_AT - total) + ' more to unlock a free Beeswax & Honey Lip Salve sample.';
     document.getElementById('sampleFill').style.width = Math.min(100, total / SAMPLE_AT * 100) + '%';
   }
-  document.getElementById('placeOrder').addEventListener('click', () => {
+  document.getElementById('placeOrder').addEventListener('click', async () => {
     const cart = TVBag.read(); if (!cart.length) return;
-    const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+    const btn = document.getElementById('placeOrder'); btn.disabled = true;
+    let res;
+    try {
+      const r = await fetch('index.php', {method: 'POST', body: new URLSearchParams({
+        action: 'place_order', csrf: TV.csrf,
+        items: JSON.stringify(cart.map(i => ({id: i.id, quantity: i.quantity})))
+      })});
+      res = await r.json();
+      if (!r.ok || !res.ok) throw new Error();
+    } catch (err) {
+      btn.disabled = false;
+      alert('Sorry, we could not place your order. Please try again.');
+      return;
+    }
+    const total = Number(res.total);
     if (window.TVOrders) TVOrders.add({items: cart, total});
     TVBag.write([]);
     page.replaceChildren();
@@ -622,7 +636,7 @@
     cart.forEach(i => { const l = el('div', 'ln'), a = el('span'), b = el('span');
       a.textContent = i.quantity + ' \u00D7 ' + i.name; b.textContent = money(i.price * i.quantity); l.append(a, b); box.append(l); });
     const t = el('div', 'tot'), ta = el('span'), tb = el('span'); ta.textContent = 'Total'; tb.textContent = money(total); t.append(ta, tb); box.append(t);
-    const note = el('p'); note.style.cssText = 'font-size:.85rem;margin-top:18px'; note.textContent = 'This project keeps the bag in your browser only, so the order is not saved on the server.';
+    const note = el('p'); note.style.cssText = 'font-size:.85rem;margin-top:18px'; note.textContent = 'Order #' + res.order_id + ' has been saved.';
     const back = el('a', 'btn-primary'); back.href = 'home.php'; back.textContent = 'Back to home'; back.style.cssText = 'text-decoration:none;display:inline-block;margin-top:24px';
     page.append(h, p, box, note, back);
   });

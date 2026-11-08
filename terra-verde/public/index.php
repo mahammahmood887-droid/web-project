@@ -3,13 +3,48 @@ require __DIR__ . '/../config/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'subscribe') {
   header('Content-Type: application/json');
-  if (!csrf_ok()) 
-    { http_response_code(400);
-   echo '{"error":"bad request"}'; exit; }
+  if (!csrf_ok()) { http_response_code(400); echo '{"error":"bad request"}'; exit; }
   $email = strtolower(trim($_POST['email'] ?? ''));
   if (strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) { http_response_code(422); echo '{"error":"invalid email"}'; exit; }
   db()->prepare("INSERT INTO newsletter_subscribers (email) VALUES (?) ON DUPLICATE KEY UPDATE unsubscribed_at = NULL")->execute([$email]);
   echo '{"ok":true}';
+  exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'place_order') {
+  header('Content-Type: application/json');
+  $user = auth_user();
+  if (!$user || $user['role'] !== 'customer') { http_response_code(401); echo '{"error":"login"}'; exit; }
+  if (!csrf_ok()) { http_response_code(400); echo '{"error":"bad request"}'; exit; }
+
+  $items = json_decode($_POST['items'] ?? '[]', true);
+  if (!is_array($items) || !$items || count($items) > 50) { http_response_code(422); echo '{"error":"empty"}'; exit; }
+
+  $qty = [];
+  foreach ($items as $i) {
+    $id = (int)($i['id'] ?? 0); $n = (int)($i['quantity'] ?? 0);
+    if ($id < 1 || $n < 1 || $n > 20) { http_response_code(422); echo '{"error":"invalid"}'; exit; }
+    $qty[$id] = min(20, ($qty[$id] ?? 0) + $n);
+  }
+
+  $in = implode(',', array_fill(0, count($qty), '?'));
+  $st = db()->prepare("SELECT id, name, price FROM products WHERE is_active=1 AND id IN ($in)");
+  $st->execute(array_keys($qty));
+  $rows = $st->fetchAll();
+  if (count($rows) !== count($qty)) { http_response_code(422); echo '{"error":"unavailable"}'; exit; }
+
+  $total = 0;
+  foreach ($rows as $r) $total += $r['price'] * $qty[$r['id']];
+
+  $pdo = db();
+  $pdo->beginTransaction();
+  $pdo->prepare('INSERT INTO orders (user_id, total) VALUES (?, ?)')->execute([$user['id'], $total]);
+  $orderId = (int)$pdo->lastInsertId();
+  $ins = $pdo->prepare('INSERT INTO order_items (order_id, product_id, product_name, unit_price, quantity) VALUES (?,?,?,?,?)');
+  foreach ($rows as $r) $ins->execute([$orderId, $r['id'], $r['name'], $r['price'], $qty[$r['id']]]);
+  $pdo->commit();
+
+  echo json_encode(['ok' => true, 'order_id' => $orderId, 'total' => $total]);
   exit;
 }
 
@@ -59,7 +94,7 @@ if (($_GET['page'] ?? '') === 'bag') {
   <a class="btn-primary" id="browse" href="home.php#products" style="text-decoration:none;display:inline-block;margin-top:12px">Browse this week's batch</a>
 </div></section></main>
 
-<script>window.TV = {loggedIn: true, first: <?= json_encode($first) ?>, products: <?= json_encode($products, JSON_HEX_TAG) ?>};</script>
+<script>window.TV = {loggedIn: true, csrf: <?= json_encode(csrf_token()) ?>, first: <?= json_encode($first) ?>, products: <?= json_encode($products, JSON_HEX_TAG) ?>};</script>
 <script src="script.js"></script>
 </body></html>
 <?php

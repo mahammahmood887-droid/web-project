@@ -71,3 +71,22 @@ INSERT INTO products (farm_id,name,concern,concern_label,price,card_color,icon_s
  (3,'Turmeric Radiance Mask','glow','For dullness + post-breakout marks',40,'var(--ivory)','<circle cx="26" cy="26" r="22" fill="#DCA278"/><circle cx="26" cy="26" r="12" fill="#FFF9E2" opacity="0.85"/>'),
  (3,'Lavender Night Balm','calm','For restless skin + overnight calm',32,'var(--eucalyptus)','<rect x="22" y="4" width="8" height="44" rx="4" fill="#A9B387"/><circle cx="26" cy="12" r="6" fill="#B87D51"/><circle cx="26" cy="24" r="6" fill="#DCA278"/><circle cx="26" cy="36" r="6" fill="#B87D51"/>'),
  (1,'Oat & Honey Hand Cream','nourish','For dry hands + cuticles',18,'var(--pistachio)','<path d="M26 4C14 14 10 30 26 48C42 30 38 14 26 4Z" fill="#DCA278"/><path d="M26 14V40" stroke="#FFF9E2" stroke-width="2"/>');
+
+CREATE TABLE IF NOT EXISTS orders (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  total DECIMAL(10,2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id INT UNSIGNED NOT NULL,
+  product_id INT UNSIGNED NULL,
+  product_name VARCHAR(120) NOT NULL,
+  unit_price DECIMAL(8,2) NOT NULL,
+  quantity TINYINT UNSIGNED NOT NULL,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+);
