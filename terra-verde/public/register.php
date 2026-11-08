@@ -54,7 +54,10 @@ $sel = $_POST['concern'] ?? '';
     <a class="brand" href="index.php"><svg class="mark" viewBox="0 0 26 26" fill="none"><path d="M13 2C13 2 4 6 4 15C4 20 8 24 13 24C18 24 22 20 22 15C22 6 13 2 13 2Z" fill="#A9B387"/><path d="M13 4V22" stroke="#3B3626" stroke-width="1" opacity="0.35"/></svg>Terra Verde</a>
     <h1>Start your ritual.</h1>
     <p class="auth-sub">Create an account to save your formulas, track orders, and get the harvest report first.</p>
-    <?php foreach ($errors as $m): ?><div class="alert error" role="alert"><?= e($m) ?></div><?php endforeach; ?>
+    <?php foreach ($errors as $m): ?>
+      <div class="alert error" role="alert">
+        <?= e($m) ?></div>
+        <?php endforeach; ?>
     <form class="auth-form" method="post" data-mode="register" novalidate>
       <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
       <div class="field"><label for="full_name">Full name</label>
@@ -69,7 +72,9 @@ $sel = $_POST['concern'] ?? '';
       <div class="field"><label>What is your skin asking for? (optional)</label>
         <div class="concern-pick">
           <?php foreach (['clarify'=>'Clarifying','glow'=>'Glow','calm'=>'Calming','nourish'=>'Nourishing'] as $k=>$l): ?>
-            <span><input type="radio" id="c-<?= $k ?>" name="concern" value="<?= $k ?>" <?= $sel===$k?'checked':'' ?>><label for="c-<?= $k ?>"><?= $l ?></label></span>
+            <span><input type="radio" id="c-<?= $k ?>" name="concern" value="<?= $k ?>" <?= $sel===$k?'checked':'' ?>>
+            <label for="c-<?= $k ?>"><?= $l ?></label>
+          </span>
           <?php endforeach; ?>
         </div></div>
       <label class="check"><input type="checkbox" name="newsletter" checked> Send me the harvest report</label>
